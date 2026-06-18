@@ -1,10 +1,10 @@
 name: CI/CD Tienda Perritos - Frontend
 
-on: 
+on:
   push:
     branches: [ "main" ]
     paths:
-      - "frontend/**"
+      - "Frontend/**" # Corregido con F mayúscula
 
 jobs:
   build-push-deploy-frontend:
@@ -17,7 +17,7 @@ jobs:
     - name: Configurar credenciales AWS
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }} # Nombre correcto
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: ${{ secrets.AWS_REGION }}
@@ -27,10 +27,11 @@ jobs:
 
     - name: Build imagen Frontend y push a ECR
       run: |
-        cd frontend
+        cd Frontend # Corregido con F mayúscula
         docker build -t tienda-frontend .
-        docker tag tienda-frontend:latest ${{ secrets.ECR_REPO_URL_FRONTEND }}:latest
-        docker push ${{ secrets.ECR_REPO_URL_FRONTEND }}:latest
+        # Cambiado a ECR_REPO_FRONTEND para que coincida con tus secretos
+        docker tag tienda-frontend:latest ${{ secrets.ECR_REPO_FRONTEND }}:latest
+        docker push ${{ secrets.ECR_REPO_FRONTEND }}:latest
 
     - name: Desplegar Frontend vía SSM
       run: |
@@ -41,9 +42,9 @@ jobs:
           --parameters '{"commands":[
             "set -e",
             "aws ecr get-login-password --region '${{ secrets.AWS_REGION }}' | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}",
-            "docker pull ${{ secrets.ECR_REPO_URL_FRONTEND }}:latest",
+            "docker pull ${{ secrets.ECR_REPO_FRONTEND }}:latest",
             "docker stop tienda-frontend || true",
             "docker rm tienda-frontend || true",
-            "docker run -d --name tienda-frontend -p 80:80 ${{ secrets.ECR_REPO_URL_FRONTEND }}:latest"
+            "docker run -d --name tienda-frontend -p 80:80 ${{ secrets.ECR_REPO_FRONTEND }}:latest"
           ]}' \
           --output text
