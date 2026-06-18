@@ -1,6 +1,6 @@
 name: CI/CD Tienda Perritos - Frontend
 
-on:
+on: 
   push:
     branches: [ "main" ]
     paths:
@@ -47,4 +47,3 @@ jobs:
             "docker run -d --name tienda-frontend -p 80:80 ${{ secrets.ECR_REPO_URL_FRONTEND }}:latest"
           ]}' \
           --output text
-          
