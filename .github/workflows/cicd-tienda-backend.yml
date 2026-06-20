@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "backend/**"
-
+  workflow_dispatch: {} # 👈 NUEVO: Permite lanzar el pipeline manualmente con un botón
 
 jobs:
   build-push-deploy-backend:
@@ -23,17 +23,18 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    # Se actualiza a v2 y se le añade un 'id' para capturar la URL automáticamente
+    # Captura la URL automáticamente
     - name: Login en Amazon ECR (runner)
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
     - name: Build imagen Backend y push a ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
       run: |
         cd backend
-        # Usamos la URL que AWS nos da automáticamente + el nombre de tu repo
-        docker build -t ${{ steps.login-ecr.outputs.registry }}/tienda-backend:latest .
-        docker push ${{ steps.login-ecr.outputs.registry }}/tienda-backend:latest
+        docker build -t $ECR_REGISTRY/tienda-backend:latest .
+        docker push $ECR_REGISTRY/tienda-backend:latest
 
     - name: Desplegar Backend vía SSM
       run: |
