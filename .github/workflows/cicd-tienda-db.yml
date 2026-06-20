@@ -10,10 +10,10 @@ on:
 jobs:
   build-push-deploy-db:
     runs-on: ubuntu-latest
-    # Definimos las variables a nivel de JOB para que todos los pasos las vean
     env:
-      ECR_REGISTRY: 271179226854.dkr.ecr.us-east-1.amazonaws.com
-      IMAGE_NAME: tienda-db
+      # Renombramos para evitar conflictos de variables de entorno
+      MI_REGISTRY_URL: 271179226854.dkr.ecr.us-east-1.amazonaws.com
+      MI_IMAGE_NAME: tienda-db
 
     steps:
     - name: Checkout código
@@ -32,18 +32,15 @@ jobs:
 
     - name: Construir y Empujar imagen
       run: |
-        # Verificación de seguridad
-        if [ -z "$ECR_REGISTRY" ]; then
-          echo "Error: ECR_REGISTRY no esta definido."
-          exit 1
-        fi
+        # Depuración: Verificamos si la variable tiene valor antes de dockerizar
+        echo "Valor de MI_REGISTRY_URL es: $MI_REGISTRY_URL"
         
         cd db
-        docker build -t $IMAGE_NAME .
+        docker build -t $MI_IMAGE_NAME .
         
-        # Etiquetar y subir usando la variable del job
-        docker tag $IMAGE_NAME:latest $ECR_REGISTRY/$IMAGE_NAME:latest
-        docker push $ECR_REGISTRY/$IMAGE_NAME:latest
+        # Etiquetar y subir usando variables explícitas
+        docker tag $MI_IMAGE_NAME:latest $MI_REGISTRY_URL/$MI_IMAGE_NAME:latest
+        docker push $MI_REGISTRY_URL/$MI_IMAGE_NAME:latest
 
     - name: Desplegar DB vía SSM
       run: |
@@ -52,10 +49,10 @@ jobs:
           --document-name "AWS-RunShellScript" \
           --comment "Actualizar tienda-db desde ECR" \
           --parameters '{"commands":[
-            "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin '$ECR_REGISTRY'",
-            "docker pull '$ECR_REGISTRY'/'$IMAGE_NAME':latest",
+            "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin '$MI_REGISTRY_URL'",
+            "docker pull '$MI_REGISTRY_URL'/'$MI_IMAGE_NAME':latest",
             "docker stop tienda-db || true",
             "docker rm tienda-db || true",
-            "docker run -d --name tienda-db -p 3306:3306 -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} '$ECR_REGISTRY'/'$IMAGE_NAME':latest"
+            "docker run -d --name tienda-db -p 3306:3306 -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} '$MI_REGISTRY_URL'/'$MI_IMAGE_NAME':latest"
           ]}' \
           --output text
