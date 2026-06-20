@@ -10,6 +10,10 @@ on:
 jobs:
   build-push-deploy-db:
     runs-on: ubuntu-latest
+    # Definimos las variables a nivel de JOB para que todos los pasos las vean
+    env:
+      ECR_REGISTRY: 271179226854.dkr.ecr.us-east-1.amazonaws.com
+      IMAGE_NAME: tienda-db
 
     steps:
     - name: Checkout código
@@ -24,24 +28,22 @@ jobs:
         aws-region: ${{ secrets.AWS_REGION }}
 
     - name: Login en Amazon ECR
-      id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build, Tag y Push a ECR
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        IMAGE_NAME: tienda-db
+    - name: Construir y Empujar imagen
       run: |
-        # Validación crítica: si no hay registry, abortar
+        # Verificación de seguridad
         if [ -z "$ECR_REGISTRY" ]; then
-          echo "Error: ECR_REGISTRY esta vacio. Verifica permisos de AWS."
+          echo "Error: ECR_REGISTRY no esta definido."
           exit 1
         fi
         
         cd db
         docker build -t $IMAGE_NAME .
-        docker tag $IMAGE_NAME:latest "$ECR_REGISTRY/$IMAGE_NAME:latest"
-        docker push "$ECR_REGISTRY/$IMAGE_NAME:latest"
+        
+        # Etiquetar y subir usando la variable del job
+        docker tag $IMAGE_NAME:latest $ECR_REGISTRY/$IMAGE_NAME:latest
+        docker push $ECR_REGISTRY/$IMAGE_NAME:latest
 
     - name: Desplegar DB vía SSM
       run: |
@@ -50,11 +52,10 @@ jobs:
           --document-name "AWS-RunShellScript" \
           --comment "Actualizar tienda-db desde ECR" \
           --parameters '{"commands":[
-            "set -e",
-            "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}",
-            "docker pull ${{ steps.login-ecr.outputs.registry }}/tienda-db:latest",
+            "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin '$ECR_REGISTRY'",
+            "docker pull '$ECR_REGISTRY'/'$IMAGE_NAME':latest",
             "docker stop tienda-db || true",
             "docker rm tienda-db || true",
-            "docker run -d --name tienda-db -p 3306:3306 -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} ${{ steps.login-ecr.outputs.registry }}/tienda-db:latest"
+            "docker run -d --name tienda-db -p 3306:3306 -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} '$ECR_REGISTRY'/'$IMAGE_NAME':latest"
           ]}' \
           --output text
