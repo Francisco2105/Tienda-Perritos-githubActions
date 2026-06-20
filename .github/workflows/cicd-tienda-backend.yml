@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "backend/**"
+  workflow_dispatch: {}
 
 jobs:
   build-push-deploy-backend:
@@ -22,18 +23,24 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    # Captura la URL automáticamente
-    - name: Login en Amazon ECR (runner)
+    - name: Login en Amazon ECR
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build imagen Backend y push a ECR
+    - name: Build, Tag y Push a ECR
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_NAME: tienda-backend
       run: |
         cd backend
-        docker build -t $ECR_REGISTRY/tienda-backend:latest .
-        docker push $ECR_REGISTRY/tienda-backend:latest
+        # 1. Construir con nombre local
+        docker build -t $IMAGE_NAME .
+        
+        # 2. Etiquetar con la URL completa del registro
+        docker tag $IMAGE_NAME:latest $ECR_REGISTRY/$IMAGE_NAME:latest
+        
+        # 3. Subir
+        docker push $ECR_REGISTRY/$IMAGE_NAME:latest
 
     - name: Desplegar Backend vía SSM
       run: |
