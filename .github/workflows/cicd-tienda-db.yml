@@ -27,20 +27,20 @@ jobs:
       id: login-ecr
       uses: aws-actions/amazon-ecr-login@v2
 
+    - name: Diagnostico de variables
+      run: |
+        echo "Registry detectado: ${{ steps.login-ecr.outputs.registry }}"
+        echo "Esta variable debe contener algo como: 271179226854.dkr.ecr.us-east-1.amazonaws.com"
+
     - name: Build, Tag y Push a ECR
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         IMAGE_NAME: tienda-db
       run: |
         cd db
-        # 1. Construir con nombre local
         docker build -t $IMAGE_NAME .
-        
-        # 2. Etiquetar con la URL completa del registro
-        docker tag $IMAGE_NAME:latest $ECR_REGISTRY/$IMAGE_NAME:latest
-        
-        # 3. Subir
-        docker push $ECR_REGISTRY/$IMAGE_NAME:latest
+        docker tag $IMAGE_NAME:latest "$ECR_REGISTRY/$IMAGE_NAME:latest"
+        docker push "$ECR_REGISTRY/$IMAGE_NAME:latest"
 
     - name: Desplegar DB vía SSM
       run: |
