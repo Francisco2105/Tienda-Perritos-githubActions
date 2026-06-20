@@ -5,6 +5,7 @@ on:
     branches: [ "main" ]
     paths:
       - "db/**"
+  workflow_dispatch: {}
 
 jobs:
   build-push-deploy-db:
@@ -22,17 +23,28 @@ jobs:
         aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
         aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Login en Amazon ECR (runner)
-      uses: aws-actions/amazon-ecr-login@v1
+    - name: Login en Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build imagen DB y push a ECR
+    - name: Build, Tag y Push a ECR
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_NAME: tienda-db
       run: |
         cd db
-        docker build -t tienda-db .
-        docker tag tienda-db:latest ${{ secrets.ECR_REPO_URL_DB }}:latest
-        docker push ${{ secrets.ECR_REPO_URL_DB }}:latest
+        # Construir con nombre local
+        docker build -t $IMAGE_NAME .
+        
+        # Etiquetar con la URL completa del registro obtenida dinámicamente
+        docker tag $IMAGE_NAME:latest $ECR_REGISTRY/$IMAGE_NAME:latest
+        
+        # Subir
+        docker push $ECR_REGISTRY/$IMAGE_NAME:latest
 
     - name: Desplegar DB vía SSM
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
       run: |
         aws ssm send-command \
           --instance-ids ${{ secrets.EC2_DB_INSTANCE_ID }} \
@@ -40,10 +52,10 @@ jobs:
           --comment "Actualizar tienda-db desde ECR" \
           --parameters '{"commands":[
             "set -e",
-            "aws ecr get-login-password --region '${{ secrets.AWS_REGION }}' | docker login --username AWS --password-stdin ${{ secrets.ECR_REGISTRY }}",
-            "docker pull ${{ secrets.ECR_REPO_URL_DB }}:latest",
+            "aws ecr get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin $ECR_REGISTRY",
+            "docker pull $ECR_REGISTRY/tienda-db:latest",
             "docker stop tienda-db || true",
             "docker rm tienda-db || true",
-            "docker run -d --name tienda-db -p 3306:3306 -v dbdata:/var/lib/mysql ${{ secrets.ECR_REPO_URL_DB }}:latest"
+            "docker run -d --name tienda-db -p 3306:3306 -v dbdata:/var/lib/mysql -e MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }} $ECR_REGISTRY/tienda-db:latest"
           ]}' \
           --output text
